@@ -129,6 +129,7 @@ export class PoWMinerStatus extends React.PureComponent<IPoWMinerStatusProps, IP
 	public render(): React.ReactElement<IPoWMinerStatusProps> {
     let now = this.props.time.getSyncedTime();
     let sessionLifetime = 0;
+
     if(this.state.startTime) {
       let sessionTimeout = this.props.faucetConfig.modules.pow.powTimeout;
       sessionLifetime = (this.state.startTime + sessionTimeout) - now;
@@ -218,6 +219,7 @@ export class PoWMinerStatus extends React.PureComponent<IPoWMinerStatusProps, IP
             <div className='status-title'>Minimum Claim Reward:</div>
           </div>
           <div className='col-6'>
+ 
             <div className='status-value'>{toReadableAmount(this.props.faucetConfig.minClaim, this.props.faucetConfig.faucetCoinDecimals, this.props.faucetConfig.faucetCoinSymbol)}</div>
           </div>
         </div>

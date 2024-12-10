@@ -41,6 +41,33 @@ export interface IConfigSchema {
   ethQueueNoFunds: boolean; // queue transactions when faucet is out of funds
   ethTxExplorerLink: string; // link to eth transaction explorer with {txid} as placeholder for transaction id or null for no link
 
+
+  faucetNetworkType: "evm" | "cw"; // network type (evm / cw)
+
+  cwRpcHost: string;
+  cwWalletMnemonic: string;
+  cwContractAddress: string;
+  cwAddressPrefix: string;
+  cwDenom: string;
+  cwGasPrice: string;
+  cwGasLimit: string;
+  cwGasAmount: string;
+  cwIsNativeToken: boolean;
+  cwMinBalance: string;
+  cwMinGasAmount: string;
+  cwLowBalanceThreshold: string;
+  cwSymbol: string;
+  cwDecimals: number;
+  cwMaxPending: number;
+  cwMinAmount: string;
+  cwMaxAmount: string;
+  cwRefillCooldown: number;
+  cwRefillContract: string | null;
+  cwRefillOverflowAmount: string;
+  cwRefillThreshold: string;
+  cwRefillAmount: string;
+  cwRefillEnabled: boolean;
+
   maxDropAmount: number;
   minDropAmount: number;
   sessionTimeout: number;

@@ -45,7 +45,7 @@ export interface IClientSessionInfo {
   tasks?: FaucetSessionTask[];
   balance: string;
   target: string;
-  modules?: {[module: string]: any};
+  modules?: { [module: string]: any };
   failedCode?: string;
   failedReason?: string;
 }
@@ -59,8 +59,8 @@ export class FaucetSession {
   private dropAmount: bigint;
   private remoteIP: string;
   private blockingTasks: FaucetSessionTask[] = [];
-  private sessionDataDict: {[key: string]: any} = {};
-  private sessionModuleRefs: {[key: string]: any} = {};
+  private sessionDataDict: { [key: string]: any } = {};
+  private sessionModuleRefs: { [key: string]: any } = {};
   private sessionTimer: NodeJS.Timeout;
   private isDirty: boolean;
   private isSaved: boolean;
@@ -74,54 +74,93 @@ export class FaucetSession {
   }
 
   public async startSession(remoteIP: string, userInput: any): Promise<void> {
-    if(this.status !== FaucetSessionStatus.UNKNOWN)
-      throw new FaucetError("INVALID_STATE", "cannot start session: session already in '" + this.status + "' state");
+    if (this.status !== FaucetSessionStatus.UNKNOWN)
+      throw new FaucetError(
+        "INVALID_STATE",
+        "cannot start session: session already in '" + this.status + "' state"
+      );
     this.status = FaucetSessionStatus.STARTING;
     this.sessionId = getNewGuid();
-    this.startTime = Math.floor((new Date()).getTime() / 1000);
-    if(remoteIP.match(/^::ffff:/))
-      remoteIP = remoteIP.substring(7);
+    this.startTime = Math.floor(new Date().getTime() / 1000);
+    if (remoteIP.match(/^::ffff:/)) remoteIP = remoteIP.substring(7);
     this.remoteIP = remoteIP;
     this.dropAmount = -1n;
 
     try {
-      await ServiceManager.GetService(ModuleManager).processActionHooks([
-        {prio: 1, hook: () => { // prio 1: check if faucet is in maintenance mode
-          if(faucetConfig.denyNewSessions) {
-            let denyMessage = typeof faucetConfig.denyNewSessions === "string" ? faucetConfig.denyNewSessions : "The faucet is currently not allowing new sessions";
-            throw new FaucetError("FAUCET_DISABLED", denyMessage);
-          }
-        }},
-        {prio: 5, hook: () => { // prio 5: get target address from userInput if not set provided by a module
-          let targetAddr = this.targetAddr || userInput.addr;
-          if(typeof targetAddr !== "string")
-            throw new FaucetError("INVALID_ADDR", "Missing target address.");
-          if(!targetAddr.match(/^0x[0-9a-fA-F]{40}$/) || targetAddr.match(/^0x0{40}$/i))
-            throw new FaucetError("INVALID_ADDR", "Invalid target address: " + targetAddr);
-          if(!this.targetAddr)
-            this.setTargetAddr(targetAddr);
-        }},
-      ], ModuleHookAction.SessionStart, [this, userInput]);
-    } catch(ex) {
-      if(ex instanceof FaucetError)
+      await ServiceManager.GetService(ModuleManager).processActionHooks(
+        [
+          {
+            prio: 1,
+            hook: () => {
+              // prio 1: check if faucet is in maintenance mode
+              if (faucetConfig.denyNewSessions) {
+                let denyMessage =
+                  typeof faucetConfig.denyNewSessions === "string"
+                    ? faucetConfig.denyNewSessions
+                    : "The faucet is currently not allowing new sessions";
+                throw new FaucetError("FAUCET_DISABLED", denyMessage);
+              }
+            },
+          },
+          {
+            prio: 5,
+            hook: () => {
+              // prio 5: get target address from userInput if not set provided by a module
+              let targetAddr = this.targetAddr || userInput.addr;
+              if (typeof targetAddr !== "string")
+                throw new FaucetError(
+                  "INVALID_ADDR",
+                  "Missing target address."
+                );
+              if (faucetConfig.faucetNetworkType === "cw") {
+                // Target address should start with the address prefix
+                if (!targetAddr.startsWith(faucetConfig.cwAddressPrefix))
+                  throw new FaucetError(
+                    "INVALID_ADDR",
+                    "Invalid target address: " + targetAddr
+                  );
+ 
+              } else {
+                if (
+                  !targetAddr.match(/^0x[0-9a-fA-F]{40}$/) ||
+                  targetAddr.match(/^0x0{40}$/i)
+                )
+                  throw new FaucetError(
+                    "INVALID_ADDR",
+                    "Invalid target address: " + targetAddr
+                  );
+              }
+              if (!this.targetAddr) this.setTargetAddr(targetAddr);
+            },
+          },
+        ],
+        ModuleHookAction.SessionStart,
+        [this, userInput]
+      );
+    } catch (ex) {
+      if (ex instanceof FaucetError)
         await this.setSessionFailed(ex.getCode(), ex.message);
       else
-        await this.setSessionFailed("INTERNAL_ERROR", "sessionStart failed: " + ex.toString());
+        await this.setSessionFailed(
+          "INTERNAL_ERROR",
+          "sessionStart failed: " + ex.toString()
+        );
       throw ex;
     }
 
-    if(this.status as FaucetSessionStatus === FaucetSessionStatus.FAILED)
+    if ((this.status as FaucetSessionStatus) === FaucetSessionStatus.FAILED)
       return;
-     
+
     this.status = FaucetSessionStatus.RUNNING;
     this.isDirty = true;
     this.manager.notifySessionUpdate(this);
     await this.tryProceedSession();
-    if(this.status === FaucetSessionStatus.RUNNING)
-      this.saveSession();
+    if (this.status === FaucetSessionStatus.RUNNING) this.saveSession();
   }
 
-  public async restoreSession(sessionData: FaucetSessionStoreData): Promise<void> {
+  public async restoreSession(
+    sessionData: FaucetSessionStoreData
+  ): Promise<void> {
     this.sessionId = sessionData.sessionId;
     this.status = sessionData.status;
     this.startTime = sessionData.startTime;
@@ -132,8 +171,12 @@ export class FaucetSession {
     this.sessionDataDict = sessionData.data;
     this.isSaved = true;
 
-    await ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionRestore, [this]);
-    
+    await ServiceManager.GetService(ModuleManager).processActionHooks(
+      [],
+      ModuleHookAction.SessionRestore,
+      [this]
+    );
+
     this.manager.notifySessionUpdate(this);
     this.resetSessionTimer();
   }
@@ -153,32 +196,35 @@ export class FaucetSession {
   }
 
   public async saveSession(): Promise<void> {
-    if(this.saveTimer) {
+    if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    if(!this.isDirty || this.isDisposed)
-      return;
+    if (!this.isDirty || this.isDisposed) return;
     this.isDirty = false;
 
-    if(this.status === FaucetSessionStatus.FAILED && !this.isSaved)
-      return; // simply forget about failed session if they haven't been written to the db yet
+    if (this.status === FaucetSessionStatus.FAILED && !this.isSaved) return; // simply forget about failed session if they haven't been written to the db yet
     this.isSaved = true;
 
-    await ServiceManager.GetService(FaucetDatabase).updateSession(this.getStoreData());
+    await ServiceManager.GetService(FaucetDatabase).updateSession(
+      this.getStoreData()
+    );
   }
 
   private lazySaveSession() {
     this.isDirty = true;
-    if(this.saveTimer)
-      return;
+    if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
       this.saveSession();
     }, faucetConfig.sessionSaveTime * 1000);
   }
 
-  public async setSessionFailed(code: string, reason: string, stack?: string): Promise<void> {
+  public async setSessionFailed(
+    code: string,
+    reason: string,
+    stack?: string
+  ): Promise<void> {
     let oldStatus = this.status;
     this.setSessionData("failed.code", code);
     this.setSessionData("failed.reason", reason);
@@ -186,74 +232,106 @@ export class FaucetSession {
     this.status = FaucetSessionStatus.FAILED;
     this.manager.notifySessionUpdate(this);
     this.resetSessionTimer();
-    ServiceManager.GetService(FaucetProcess).emitLog(FaucetLogLevel.INFO, "Session " + this.sessionId + " failed: [" + code + "] " + reason);
-    if(oldStatus === FaucetSessionStatus.RUNNING)
-      ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionComplete, [this]);
-    if(this.isSaved)
-      await this.saveSession();
+    ServiceManager.GetService(FaucetProcess).emitLog(
+      FaucetLogLevel.INFO,
+      "Session " + this.sessionId + " failed: [" + code + "] " + reason
+    );
+    if (oldStatus === FaucetSessionStatus.RUNNING)
+      ServiceManager.GetService(ModuleManager).processActionHooks(
+        [],
+        ModuleHookAction.SessionComplete,
+        [this]
+      );
+    if (this.isSaved) await this.saveSession();
     this.isDisposed = true;
   }
 
   private resetSessionTimer() {
-    if(this.sessionTimer) {
+    if (this.sessionTimer) {
       clearTimeout(this.sessionTimer);
       this.sessionTimer = null;
     }
-    let now = Math.floor((new Date()).getTime() / 1000);
+    let now = Math.floor(new Date().getTime() / 1000);
 
-    if(this.status === FaucetSessionStatus.RUNNING) {
+    if (this.status === FaucetSessionStatus.RUNNING) {
       let minTaskTimeout = 0;
       this.blockingTasks.forEach((task) => {
-        if(task.timeout > now && (minTaskTimeout === 0 || task.timeout < minTaskTimeout))
+        if (
+          task.timeout > now &&
+          (minTaskTimeout === 0 || task.timeout < minTaskTimeout)
+        )
           minTaskTimeout = task.timeout;
       });
       let sessionTimeout = this.startTime + faucetConfig.sessionTimeout;
-      let timerDelay = (Math.min(minTaskTimeout, sessionTimeout) - now) + 1;
-      if(timerDelay < 1)
-        timerDelay = 1;
-      this.sessionTimer = setTimeout(() => this.tryProceedSession(), timerDelay * 1000);
+      let timerDelay = Math.min(minTaskTimeout, sessionTimeout) - now + 1;
+      if (timerDelay < 1) timerDelay = 1;
+      this.sessionTimer = setTimeout(
+        () => this.tryProceedSession(),
+        timerDelay * 1000
+      );
     }
   }
 
   public async tryProceedSession(): Promise<void> {
-    let now = Math.floor((new Date()).getTime() / 1000);
+    let now = Math.floor(new Date().getTime() / 1000);
     let sessionTimeout = this.startTime + faucetConfig.sessionTimeout;
 
-    if(this.status === FaucetSessionStatus.RUNNING) {
-      if(now >= sessionTimeout) {
-        return await this.setSessionFailed("SESSION_TIMEOUT", "session timeout");
+    if (this.status === FaucetSessionStatus.RUNNING) {
+      if (now >= sessionTimeout) {
+        return await this.setSessionFailed(
+          "SESSION_TIMEOUT",
+          "session timeout"
+        );
       }
 
-      for(let i = this.blockingTasks.length - 1; i >= 0; i--) {
-        if(this.blockingTasks[i].timeout > 0 && this.blockingTasks[i].timeout < now) {
+      for (let i = this.blockingTasks.length - 1; i >= 0; i--) {
+        if (
+          this.blockingTasks[i].timeout > 0 &&
+          this.blockingTasks[i].timeout < now
+        ) {
           this.blockingTasks.splice(i, 1);
         }
       }
-      if(this.blockingTasks.length === 0) {
+      if (this.blockingTasks.length === 0) {
         await this.completeSession();
-      }
-      else {
+      } else {
         this.resetSessionTimer();
       }
     }
   }
 
   public async completeSession(): Promise<void> {
-    if(this.dropAmount === -1n) {
+    if (this.dropAmount === -1n) {
       await this.addReward(BigInt(faucetConfig.maxDropAmount));
     }
 
-    if(this.dropAmount < BigInt(faucetConfig.minDropAmount)) {
-      ServiceManager.GetService(FaucetProcess).emitLog(FaucetLogLevel.INFO, "session amount too low: [" + this.dropAmount + "] " + JSON.stringify(this.sessionDataDict));
-      return await this.setSessionFailed("AMOUNT_TOO_LOW", "drop amount lower than minimum");
+    if (this.dropAmount < BigInt(faucetConfig.minDropAmount)) {
+      ServiceManager.GetService(FaucetProcess).emitLog(
+        FaucetLogLevel.INFO,
+        "session amount too low: [" +
+          this.dropAmount +
+          "] " +
+          JSON.stringify(this.sessionDataDict)
+      );
+      return await this.setSessionFailed(
+        "AMOUNT_TOO_LOW",
+        "drop amount lower than minimum"
+      );
     }
-    
-    ServiceManager.GetService(FaucetProcess).emitLog(FaucetLogLevel.INFO, "Session " + this.sessionId + " is claimable");
+
+    ServiceManager.GetService(FaucetProcess).emitLog(
+      FaucetLogLevel.INFO,
+      "Session " + this.sessionId + " is claimable"
+    );
     this.status = FaucetSessionStatus.CLAIMABLE;
-    await ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionComplete, [this]);
+    await ServiceManager.GetService(ModuleManager).processActionHooks(
+      [],
+      ModuleHookAction.SessionComplete,
+      [this]
+    );
     ServiceManager.GetService(FaucetStatsLog).addSessionStats(this);
     this.manager.notifySessionUpdate(this);
-    this.setSessionData("close.time", Math.floor((new Date()).getTime() / 1000));
+    this.setSessionData("close.time", Math.floor(new Date().getTime() / 1000));
     this.saveSession();
     this.isDisposed = true;
   }
@@ -275,16 +353,18 @@ export class FaucetSession {
   }
 
   public async updateRemoteIP(remoteIP: string): Promise<void> {
-    if(remoteIP.match(/^::ffff:/))
-      remoteIP = remoteIP.substring(7);
-    if(this.remoteIP === remoteIP)
-      return;
+    if (remoteIP.match(/^::ffff:/)) remoteIP = remoteIP.substring(7);
+    if (this.remoteIP === remoteIP) return;
     let oldRemoteIP = this.remoteIP;
     this.remoteIP = remoteIP;
 
     try {
-      await ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionIpChange, [this]);
-    } catch(ex) {
+      await ServiceManager.GetService(ModuleManager).processActionHooks(
+        [],
+        ModuleHookAction.SessionIpChange,
+        [this]
+      );
+    } catch (ex) {
       this.remoteIP = oldRemoteIP;
       throw ex;
     }
@@ -296,8 +376,11 @@ export class FaucetSession {
   }
 
   public setTargetAddr(addr: string) {
-    if(this.targetAddr && this.targetAddr !== addr)
-      throw new FaucetError("INVALID_STATE", "cannot change target address: already set.");
+    if (this.targetAddr && this.targetAddr !== addr)
+      throw new FaucetError(
+        "INVALID_STATE",
+        "cannot change target address: already set."
+      );
     this.targetAddr = addr;
   }
 
@@ -322,18 +405,27 @@ export class FaucetSession {
     return this.blockingTasks.slice();
   }
 
-  public addBlockingTask(moduleName: string, taskName: string, timeLimit: number) {
+  public addBlockingTask(
+    moduleName: string,
+    taskName: string,
+    timeLimit: number
+  ) {
     this.blockingTasks.push({
       module: moduleName,
       name: taskName,
-      timeout: timeLimit ? Math.floor((new Date()).getTime() / 1000) + timeLimit : 0,
+      timeout: timeLimit
+        ? Math.floor(new Date().getTime() / 1000) + timeLimit
+        : 0,
     });
     this.resetSessionTimer();
   }
 
   public resolveBlockingTask(moduleName: string, taskName: string) {
-    for(let i = this.blockingTasks.length - 1; i >= 0; i--) {
-      if(this.blockingTasks[i].module === moduleName && this.blockingTasks[i].name === taskName) {
+    for (let i = this.blockingTasks.length - 1; i >= 0; i--) {
+      if (
+        this.blockingTasks[i].module === moduleName &&
+        this.blockingTasks[i].name === taskName
+      ) {
         this.blockingTasks.splice(i, 1);
       }
     }
@@ -346,41 +438,57 @@ export class FaucetSession {
   }
 
   public setDropAmount(amount: bigint) {
-    if(this.dropAmount !== -1n)
-      return;
-    if(this.getSessionStatus() === FaucetSessionStatus.CLAIMING || this.getSessionStatus() === FaucetSessionStatus.FINISHED || this.getSessionStatus() === FaucetSessionStatus.FAILED)
+    if (this.dropAmount !== -1n) return;
+    if (
+      this.getSessionStatus() === FaucetSessionStatus.CLAIMING ||
+      this.getSessionStatus() === FaucetSessionStatus.FINISHED ||
+      this.getSessionStatus() === FaucetSessionStatus.FAILED
+    )
       return 0n;
     this.dropAmount = 0n;
-    if(amount > 0n)
-      this.addReward(amount);
-    else
-      this.lazySaveSession();
+    if (amount > 0n) this.addReward(amount);
+    else this.lazySaveSession();
   }
 
   public async addReward(amount: bigint): Promise<bigint> {
-    if(this.getSessionStatus() === FaucetSessionStatus.CLAIMING || this.getSessionStatus() === FaucetSessionStatus.FINISHED || this.getSessionStatus() === FaucetSessionStatus.FAILED)
+    if (
+      this.getSessionStatus() === FaucetSessionStatus.CLAIMING ||
+      this.getSessionStatus() === FaucetSessionStatus.FINISHED ||
+      this.getSessionStatus() === FaucetSessionStatus.FAILED
+    )
       return 0n;
-    
+
     let rewardFactors: ISessionRewardFactor[] = [];
-    await ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionRewardFactor, [this, rewardFactors]);
+    await ServiceManager.GetService(ModuleManager).processActionHooks(
+      [],
+      ModuleHookAction.SessionRewardFactor,
+      [this, rewardFactors]
+    );
     this.setSessionData("reward.factors", rewardFactors);
 
     let rewardFactor = 1;
     //console.log(rewardFactors);
     rewardFactors.forEach((factor) => {
-      if(!factor || typeof factor.factor !== "number")
-        return;
-      rewardFactor *= factor?.factor
+      if (!factor || typeof factor.factor !== "number") return;
+      rewardFactor *= factor?.factor;
     });
 
-    let rewardAmount = amount * BigInt(Math.floor(rewardFactor * 100000)) / 100000n;
-    ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionRewarded, [this, rewardAmount, rewardFactors]);
+    let rewardAmount =
+      (amount * BigInt(Math.floor(rewardFactor * 100000))) / 100000n;
+    ServiceManager.GetService(ModuleManager).processActionHooks(
+      [],
+      ModuleHookAction.SessionRewarded,
+      [this, rewardAmount, rewardFactors]
+    );
 
-    if(this.getSessionStatus() === FaucetSessionStatus.CLAIMING || this.getSessionStatus() === FaucetSessionStatus.FINISHED || this.getSessionStatus() === FaucetSessionStatus.FAILED)
+    if (
+      this.getSessionStatus() === FaucetSessionStatus.CLAIMING ||
+      this.getSessionStatus() === FaucetSessionStatus.FINISHED ||
+      this.getSessionStatus() === FaucetSessionStatus.FAILED
+    )
       return 0n;
 
-    if(this.dropAmount === -1n)
-      this.dropAmount = 0n;
+    if (this.dropAmount === -1n) this.dropAmount = 0n;
     this.dropAmount += rewardAmount;
 
     this.lazySaveSession();
@@ -388,20 +496,26 @@ export class FaucetSession {
   }
 
   public async subPenalty(amount: bigint) {
-    if(this.status === FaucetSessionStatus.CLAIMING || this.status === FaucetSessionStatus.FINISHED || this.status === FaucetSessionStatus.FAILED)
+    if (
+      this.status === FaucetSessionStatus.CLAIMING ||
+      this.status === FaucetSessionStatus.FINISHED ||
+      this.status === FaucetSessionStatus.FAILED
+    )
       return;
-    
-    if(this.dropAmount === -1n)
-      this.dropAmount = 0n;
+
+    if (this.dropAmount === -1n) this.dropAmount = 0n;
     this.dropAmount -= amount;
-    if(this.dropAmount < 0n)
-      this.dropAmount = 0n;
+    if (this.dropAmount < 0n) this.dropAmount = 0n;
     this.lazySaveSession();
   }
 
   public async getSessionInfo(): Promise<IClientSessionInfo> {
     let moduleData: any = {};
-    await ServiceManager.GetService(ModuleManager).processActionHooks([], ModuleHookAction.SessionInfo, [this, moduleData]);
+    await ServiceManager.GetService(ModuleManager).processActionHooks(
+      [],
+      ModuleHookAction.SessionInfo,
+      [this, moduleData]
+    );
     let sessionInfo: IClientSessionInfo = {
       session: this.getSessionId(),
       status: this.getSessionStatus(),
@@ -409,13 +523,12 @@ export class FaucetSession {
       tasks: this.getBlockingTasks(),
       balance: this.getDropAmount().toString(),
       target: this.getTargetAddr(),
-      modules: moduleData
+      modules: moduleData,
     };
-    if(this.status === FaucetSessionStatus.FAILED) {
+    if (this.status === FaucetSessionStatus.FAILED) {
       sessionInfo.failedCode = this.getSessionData("failed.code");
       sessionInfo.failedReason = this.getSessionData("failed.reason");
     }
     return sessionInfo;
   }
-
 }

@@ -15,6 +15,12 @@ export function toDecimalUnit(amount: number, decimals?: number): number {
 }
 
 export function toReadableAmount(amount: number | bigint, decimals?: number, unit?: string, precision?: number): string {
+
+  console.log("amount: ", amount);
+  console.log("decimals: ", decimals);
+  console.log("unit: ", unit);
+
+  
   if(!decimals)
     decimals = 18;
   if(!precision) 

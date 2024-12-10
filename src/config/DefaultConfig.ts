@@ -1,5 +1,6 @@
 import { FaucetDbDriver } from "../db/FaucetDatabase.js";
 import { FaucetCoinType } from "../eth/EthWalletManager.js";
+
 import { IConfigSchema } from "./ConfigSchema.js";
 import { resolveRelativePath } from "./FaucetConfig.js";
 
@@ -30,6 +31,7 @@ export function getDefaultConfig(): IConfigSchema {
     serverPort: 8080,
     httpProxyCount: 0,
     faucetSecret: null, // mandatory
+    faucetNetworkType: "cw",
 
     ethRpcHost: null, // mandatory
     ethWalletKey: null, // mandatory
@@ -41,6 +43,30 @@ export function getDefaultConfig(): IConfigSchema {
     ethMaxPending: 20,
     ethQueueNoFunds: false,
     ethTxExplorerLink: null,
+
+    cwAddressPrefix: null, // mandatory
+    cwRpcHost: null, // mandatory
+    cwContractAddress: "",
+    cwDecimals: null, // mandatory
+    cwDenom: null, // mandatory
+    cwMaxPending: 20,
+    cwRefillAmount: "1000000000000000000", // 1 ETH
+    cwSymbol: "MANTRA",
+    cwGasAmount: "10000",
+    cwGasLimit: "100000",
+    cwGasPrice: "33000",
+    cwIsNativeToken: true,
+    cwLowBalanceThreshold: "1000000",
+    cwMaxAmount: "10000000", // 10 CW
+    cwMinAmount: "10000",
+    cwMinBalance: "0", // ???
+    cwMinGasAmount: "10000",
+    cwWalletMnemonic: null, // mandatory
+    cwRefillThreshold: "1000000000000000000", // 1 ETH
+    cwRefillContract: "",
+    cwRefillEnabled: false,
+    cwRefillCooldown: 3600,
+    cwRefillOverflowAmount: "1000000000000000000", // 1 ETH
 
     maxDropAmount: 1000000000000000000, // 1 ETH
     minDropAmount: 10000000000000000, // 0.01 ETH
@@ -65,10 +91,10 @@ export function getDefaultConfig(): IConfigSchema {
       yaml: "faucet-status.yaml",
     },
     resultSharing: {
-      preHtml: '<div class="sh-opt">Do you like the faucet? Give that project a <iframe src="https://ghbtns.com/github-btn.html?user=pk910&repo=PoWFaucet&type=star&count=true" frameborder="0" scrolling="0" width="150" height="20" title="GitHub"></iframe></div>',
-      postHtml: '',
+      preHtml:
+        '<div class="sh-opt">Do you like the faucet? Give that project a <iframe src="https://ghbtns.com/github-btn.html?user=pk910&repo=PoWFaucet&type=star&count=true" frameborder="0" scrolling="0" width="150" height="20" title="GitHub"></iframe></div>',
+      postHtml: "",
       caption: null,
     },
   };
 }
-

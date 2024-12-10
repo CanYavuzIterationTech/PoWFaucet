@@ -167,14 +167,12 @@ export class PoWModule extends BaseModule<IPoWConfig> {
 
   private async processPoWClientWebSocket(req: IncomingMessage, ws: WebSocket, remoteIp: string): Promise<void> {
     let sessionId: string;
-    let clientVersion: string;
     try {
       let urlParts = req.url.split("?");
       let url = new URLSearchParams(urlParts[1]);
       if(!(sessionId = url.get("session"))) {
         throw "session id missing";
       }
-      clientVersion = url.get("cliver");
     } catch(ex) {
       ws.send(JSON.stringify({
         action: "error",
@@ -210,8 +208,6 @@ export class PoWModule extends BaseModule<IPoWConfig> {
       ws.close();
       return;
     }
-
-    session.setSessionData("cliver", clientVersion);
 
     let powSession = this.getPoWSession(session);
     let powClient: PoWClient;
