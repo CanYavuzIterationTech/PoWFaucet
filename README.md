@@ -4,8 +4,9 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/pk910/PoWFaucet?label=Latest%20Release)](https://github.com/pk910/PoWFaucet/releases/latest)
 [![codecov](https://codecov.io/gh/pk910/PoWFaucet/branch/master/graph/badge.svg)](https://codecov.io/gh/pk910/PoWFaucet)
 
+# Fork of PoWFaucet by pk910
 
-Modularized faucet for EVM chains with different protection methods (Captcha, Mining, IP, Mainnet Balance, Gitcoin Passport and more)
+Modularized faucet for CosmWasm chains with different protection methods (Captcha, Mining, IP, Mainnet Balance, Gitcoin Passport and more)
 
 # Why
 
